@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Chase Camera (Three.js)</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+    <link rel="stylesheet" href="css/base.css" />
+  </head>
+  <body>
+    <script src="js/Three.js"></script>
+    <script src="js/Detector.js"></script>
+    <script src="js/Stats.js"></script>
+    <script src="js/OrbitControls.js"></script>
+    <script src="js/THREEx.KeyboardState.js"></script>
+    <script src="js/THREEx.FullScreen.js"></script>
+    <script src="js/THREEx.WindowResize.js"></script>
+
+    <!-- jQuery code to display an information button and box when clicked. -->
+    <script src="js/jquery-1.9.1.js"></script>
+    <script src="js/jquery-ui.js"></script>
+    <link rel="stylesheet" href="css/jquery-ui.css" />
+    <link rel="stylesheet" href="css/info.css" />
+    <script src="js/info.js"></script>
+    <div id="infoButton"></div>
+    <div id="infoBox" title="Demo Information">
+      Movement controls: <br />
+      <ul>
+        <li>W/S: Translate Forward/Backward</li>
+        <li>A/D: Rotate Left/Right</li>
+        <li>Q/E: Translate Left/Right</li>
+        <li>R/F: Rotate Up/Down</li>
+        <li>Z: Reset position and rotation.</li>
+      </ul>
+
+      This three.js demo is part of a collection at
+      <a href="http://stemkoski.github.io/Three.js/"
+        >http://stemkoski.github.io/Three.js/</a
+      >
+    </div>
+    <!-- ------------------------------------------------------------ -->
+
+    <div id="ThreeJS" style="position: absolute; left: 0px; top: 0px"></div>
+    <script>
+      /*
+      	Three.js "tutorials by example"
+      	Author: Lee Stemkoski
+      	Date: July 2013 (three.js v59dev)
+      */
+
+      // MAIN
+
+      // standard global variables
+      var container, scene, camera, renderer, controls, stats;
+      var keyboard = new THREEx.KeyboardState();
+      var clock = new THREE.Clock();
+      // custom global variables
+      var cube;
+
+      var yAngle = 0,
+        xAngle = 0;
+
+      init();
+      animate();
+
+      // FUNCTIONS
+      function init() {
+        // SCENE
+        scene = new THREE.Scene();
+        // CAMERA
+        var SCREEN_WIDTH = window.innerWidth,
+          SCREEN_HEIGHT = window.innerHeight;
+        var VIEW_ANGLE = 45,
+          ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT,
+          NEAR = 0.1,
+          FAR = 20000;
+        camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
+        scene.add(camera);
+        camera.position.set(0, 150, 400);
+        camera.lookAt(scene.position);
+        // RENDERER
+        if (Detector.webgl)
+          renderer = new THREE.WebGLRenderer({ antialias: true });
+        else renderer = new THREE.CanvasRenderer();
+        renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+        container = document.getElementById("ThreeJS");
+        container.appendChild(renderer.domElement);
+        // EVENTS
+        THREEx.WindowResize(renderer, camera);
+        THREEx.FullScreen.bindKey({ charCode: "m".charCodeAt(0) });
+
+        // CONTROLS
+        // MUST REMOVE THIS LINE!!!
+        // controls = ...
+
+        // STATS
+        stats = new Stats();
+        stats.domElement.style.position = "absolute";
+        stats.domElement.style.bottom = "0px";
+        stats.domElement.style.zIndex = 100;
+        container.appendChild(stats.domElement);
+        // LIGHT
+        var light = new THREE.PointLight(0xffffff);
+        light.position.set(0, 250, 0);
+        scene.add(light);
+        // FLOOR
+        var floorTexture = new THREE.ImageUtils.loadTexture(
+          "images/checkerboard.jpg"
+        );
+        floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
+        floorTexture.repeat.set(10, 10);
+        var floorMaterial = new THREE.MeshBasicMaterial({
+          map: floorTexture,
+          side: THREE.DoubleSide,
+        });
+        var floorGeometry = new THREE.PlaneGeometry(1000, 1000, 10, 10);
+        var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.position.y = -0.5;
+        floor.rotation.x = Math.PI / 2;
+        scene.add(floor);
+        // SKYBOX/FOG
+        var skyBoxGeometry = new THREE.CubeGeometry(10000, 10000, 10000);
+        var skyBoxMaterial = new THREE.MeshBasicMaterial({
+          color: 0x9999ff,
+          side: THREE.BackSide,
+        });
+        var skyBox = new THREE.Mesh(skyBoxGeometry, skyBoxMaterial);
+        // scene.add(skyBox);
+        scene.fog = new THREE.FogExp2(0x9999ff, 0.00025);
+
+        ////////////
+        // CUSTOM //
+        ////////////
+
+        /* GEOMETRY */
+        var geometry = new THREE.Geometry();
+
+        const scale = 5;
+
+        const vertices = [
+          new THREE.Vector3(-10 * scale, 8 * scale, 0 * scale),
+          new THREE.Vector3(-2 * scale, 6 * scale, 0 * scale),
+          new THREE.Vector3(0 * scale, 0 * scale, 0 * scale),
+          new THREE.Vector3(2 * scale, 6 * scale, 0 * scale),
+          new THREE.Vector3(10 * scale, 8 * scale, 0 * scale),
+          new THREE.Vector3(-10 * scale, 8 * scale, -2 * scale),
+          new THREE.Vector3(10 * scale, 8 * scale, -2 * scale),
+          new THREE.Vector3(-1 * scale, 6 * scale, -8 * scale), // this
+          new THREE.Vector3(0 * scale, 0 * scale, -8 * scale),
+          new THREE.Vector3(1 * scale, 6 * scale, -8 * scale), // and this
+          new THREE.Vector3(0 * scale, 2 * scale, -28 * scale),
+        ];
+        const faces = [
+          new THREE.Face3(1, 2, 10),
+          new THREE.Face3(2, 3, 10),
+          new THREE.Face4(0, 1, 5),
+          new THREE.Face4(5, 1, 10),
+          new THREE.Face3(3, 4, 6),
+          new THREE.Face3(3, 6, 10),
+          new THREE.Face3(5, 7, 10), // this
+          new THREE.Face3(9, 6, 10), // and this
+          new THREE.Face3(7, 8, 10),
+          new THREE.Face3(8, 9, 10),
+        ];
+        geometry.vertices = vertices;
+        geometry.faces = faces;
+
+        geometry.faces[0].color = new THREE.Color("rgb(255, 0, 0)");
+        geometry.vertexColors = THREE.FaceColors;
+
+        /* MATERIAL */
+        // this material causes a mesh to use colors assigned to vertices
+        //   different colors at face vertices create gradient effect
+        var material = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          vertexColors: THREE.VertexColors,
+        });
+
+        /* COLORING */
+        const colors = [
+          new THREE.Color(0xcccccc),
+          new THREE.Color(0xdddddd),
+          new THREE.Color(0xefefef),
+          new THREE.Color(0xefefef),
+          new THREE.Color(0xefefef),
+          new THREE.Color(0xefefef),
+          new THREE.Color(0xf8f8f8),
+          new THREE.Color(0xf8f8f8),
+          new THREE.Color(0xcfcfcf),
+          new THREE.Color(0xdfdfdf),
+        ];
+
+        // faces are indexed using characters
+        var faceIndices = ["a", "b", "c"];
+
+        // randomly color cube
+        for (var i = 0; i < geometry.faces.length; i++) {
+          face = geometry.faces[i];
+          for (var j = 0; j < 3; j++) {
+            vertexIndex = face[faceIndices[j]];
+
+            face.vertexColors[j] = colors[i];
+          }
+        }
+
+        /* PLANE */
+        plane = new THREE.Mesh(geometry, material);
+
+        scene.add(plane);
+      }
+
+      var plane;
+
+      function animate() {
+        requestAnimationFrame(animate);
+        render();
+        update(camera);
+      }
+
+      function update(camera) {
+        var delta = clock.getDelta(); // seconds.
+        var moveDistance = 200 * delta; // 200 pixels per second
+        var rotateAngle = (Math.PI / 2) * delta; // pi/2 radians (90 degrees) per second
+
+        // local transformations
+
+        // move forwards/backwards/left/right
+        if (keyboard.pressed("R")) plane.translateZ(-moveDistance);
+        if (keyboard.pressed("F")) plane.translateZ(moveDistance);
+        if (keyboard.pressed("Q")) plane.translateX(-moveDistance);
+        if (keyboard.pressed("E")) plane.translateX(moveDistance);
+
+        // rotate left/right/up/down
+        var rotation_matrix = new THREE.Matrix4().identity();
+        if (keyboard.pressed("A")) {
+          yAngle += rotateAngle;
+          yAngle %= 2 * Math.PI;
+        }
+        if (keyboard.pressed("D")) {
+          yAngle -= rotateAngle;
+          yAngle %= 2 * Math.PI;
+        }
+        if (keyboard.pressed("W")) {
+          if (xAngle + rotateAngle < Math.PI / 2 - 0.4) xAngle += rotateAngle;
+        }
+        if (keyboard.pressed("S")) {
+          if (xAngle + rotateAngle > -Math.PI / 2 + 0.6) xAngle -= rotateAngle;
+        }
+
+        if (keyboard.pressed("Z")) {
+          plane.position.set(0, 25.1, 0);
+          plane.rotation.set(0, 0, 0);
+        }
+
+        if (keyboard.pressed("space")) plane.translateZ(-moveDistance);
+
+        plane.rotation.set(0, 0, 0);
+        plane.rotateY(yAngle);
+        plane.rotateX(xAngle);
+
+        var relativeCameraOffset = new THREE.Vector3(0, 150, 300);
+
+        var cameraOffset = relativeCameraOffset.applyMatrix4(plane.matrixWorld);
+
+        camera.position.x = cameraOffset.x;
+        camera.position.y = cameraOffset.y;
+        camera.position.z = cameraOffset.z;
+        camera.lookAt(plane.position);
+
+        //camera.updateMatrix();
+        //camera.updateProjectionMatrix();
+
+        stats.update();
+      }
+
+      function render() {
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>

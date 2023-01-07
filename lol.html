@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <canvas id="myCanvas"> </canvas>
+
+    <script>
+      let img = new window.Image();
+      img.crossOrigin = `Anonymous`;
+
+      img.src = "./images/A-button.png";
+      img.onload = function () {
+        canvas = document.getElementById("myCanvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        let ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        data = imgData.data;
+        canvas.addEventListener("mousemove", (ev) => {
+          //as the mouse moves around the image
+          let cols = canvas.width;
+          let { offsetX, offsetY } = ev;
+          //call the method to get the r,g,b,a values for current pixel
+          let c = extractPixelColor(cols, offsetY, offsetX);
+          //build a colour string for
+          let colour = `rgb(${c.red}, ${c.green}, ${c.blue})`;
+          let hexCode = `#${[c.red, c.green, c.blue]
+            .map((x) => x.toString(16).padStart(2, "0"))
+            .join("")}`;
+          console.log(hexCode);
+        });
+      };
+
+      //cols: Width of the image representing total number of columns
+      //x: Row position of this pixel
+      //y: Column position of this pixel
+      const extractPixelColor = (cols, x, y) => {
+        //To get the exact pixel, the logic is to multiply total columns in this image with the row position of this pixel and then add the column position of this pixed
+        let pixel = cols * x + y;
+        //To get the array position in the entire image data array, simply multiply your pixel position by 4 (since each pixel will have its own r,g,b,a in that order)
+        let position = pixel * 4;
+        //the rgba value of current pixel will be the following
+        return {
+          red: data[position],
+          green: data[position + 1],
+          blue: data[position + 2],
+          alpha: data[position + 3],
+        };
+      };
+    </script>
+  </body>
+</html>

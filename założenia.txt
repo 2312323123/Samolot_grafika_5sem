@@ -1,0 +1,10 @@
+i'm in Skybox
+there's Graphulus-Function.html , but image 'texture' with heights from another image
+I have Chase-Camera.html on plane object
+I'm set above the highest point, and I can throw a plane using space,
+and during flight control it with wsad, until it falls out of the set boundaries, or
+collides like in Collision-Detection.html
+
+plane:
+Model-Animation-Control.html
+Model.html

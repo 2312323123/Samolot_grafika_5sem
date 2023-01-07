@@ -1,0 +1,479 @@
+<html>
+  <head>
+    <title>Collision Detection (Three.js)</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+    <link rel="stylesheet" href="css/base.css" />
+  </head>
+  <body>
+    <div id="message"></div>
+
+    <script src="js/Three.js"></script>
+    <script src="js/Detector.js"></script>
+    <script src="js/Stats.js"></script>
+    <script src="js/OrbitControls.js"></script>
+    <script src="js/THREEx.KeyboardState.js"></script>
+    <script src="js/THREEx.FullScreen.js"></script>
+    <script src="js/THREEx.WindowResize.js"></script>
+
+    <!-- /* Graphulus-Function.js */ -->
+    <!-- http://silentmatt.com/javascript-expression-evaluator/ -->
+    <script src="js/parser.js"></script>
+    <!-- /* /Graphulus-Function.js */ -->
+
+    <!-- jQuery code to display an information button and box when clicked. -->
+    <script src="js/jquery-1.9.1.js"></script>
+    <script src="js/jquery-ui.js"></script>
+    <link rel="stylesheet" href="css/jquery-ui.css" />
+    <link rel="stylesheet" href="css/info.css" />
+    <script src="js/info.js"></script>
+    <div id="infoButton"></div>
+    <div id="infoBox" title="Demo Information">
+      Controls:
+      <ul>
+        <li>Up/Down arrow: move in global Z direction</li>
+        <li>Left/Right arrow: move in global X direction</li>
+        <li>A/D: rotate left/right</li>
+      </ul>
+
+      Notes:
+      <br />
+      Collision rays originate at center of cube and extend to each vertex.
+      Collisions are indicated by "hit" text above the Three.js region. Note
+      that collisions do not register if rays intersect the back side of a mesh
+      (in particular, if the origin of the rays are contained in the target
+      mesh).
+      <br /><br />
+      This three.js demo is part of a collection at
+      <a href="http://stemkoski.github.io/Three.js/"
+        >http://stemkoski.github.io/Three.js/</a
+      >
+    </div>
+    <!-- ------------------------------------------------------------ -->
+
+    <div id="ThreeJS" style="z-index: 2"></div>
+
+    <script src="./components/Plane.js"></script>
+
+    <script>
+      /* Graphulus-Function.js */
+      async function loadImageData(url) {
+        return new Promise((resolve, reject) => {
+          let img = new window.Image();
+          img.crossOrigin = `Anonymous`;
+          img.src = url;
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            data = imgData.data;
+
+            let redValues = [];
+            for (let i = 0; i < data.length - 3; i += 4) {
+              redValues.push(data[i]);
+            }
+            const result = {
+              width: canvas.width,
+              height: canvas.height,
+              points: redValues,
+            };
+            canvas.remove();
+            resolve(result);
+          };
+          img.onerror = () => reject(new Error("Failed to load image"));
+        });
+      }
+      /* /Graphulus-Function.js */
+
+      /*
+      	Three.js "tutorials by example"
+      	Author: Lee Stemkoski
+      	Date: July 2013 (three.js v59dev)
+      */
+
+      // MAIN
+
+      // standard global variables
+      var container, scene, camera, renderer, controls, stats;
+      var keyboard = new THREEx.KeyboardState();
+      var clock = new THREE.Clock();
+      // custom global variables
+
+      var MovingCube;
+      var collidableMeshList = [];
+
+      var arrowList = [];
+      var directionList = [];
+
+      /* Graphulus-Function.js */
+      var zFuncText = "x^2 - y^2";
+      var segments = 20,
+        xMin = -10,
+        xMax = 10,
+        xRange = xMax - xMin,
+        yMin = -10,
+        yMax = 10,
+        yRange = yMax - yMin,
+        zMin = -10,
+        zMax = 10,
+        zRange = zMax - zMin;
+
+      var gridMaterial, wireMaterial, vertexColorMaterial;
+      var graphMesh;
+      /* /Graphulus-Function.js */
+
+      async function main() {
+        await init();
+        await animate();
+      }
+      main();
+
+      // FUNCTIONS
+      async function init() {
+        // SCENE
+        scene = new THREE.Scene();
+
+        /* Chase-Camera camera*/
+        // CAMERA
+        var SCREEN_WIDTH = window.innerWidth,
+          SCREEN_HEIGHT = window.innerHeight;
+        var VIEW_ANGLE = 45,
+          ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT,
+          NEAR = 0.1,
+          FAR = 20000;
+        camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
+        scene.add(camera);
+        // camera.position.set(0, 150, 400);
+        camera.lookAt(scene.position);
+        /* Chase-Camera camera*/
+
+        // RENDERER
+        if (Detector.webgl)
+          renderer = new THREE.WebGLRenderer({ antialias: true });
+        else renderer = new THREE.CanvasRenderer();
+        renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+        container = document.getElementById("ThreeJS");
+        container.appendChild(renderer.domElement);
+        // EVENTS
+        THREEx.WindowResize(renderer, camera);
+        THREEx.FullScreen.bindKey({ charCode: "m".charCodeAt(0) });
+        /* original camera */
+        // // CONTROLS
+        // controls = new THREE.OrbitControls(camera, renderer.domElement);
+        /* /original camera */
+        // STATS
+        stats = new Stats();
+        stats.domElement.style.position = "absolute";
+        stats.domElement.style.bottom = "0px";
+        stats.domElement.style.zIndex = 100;
+        container.appendChild(stats.domElement);
+        // LIGHT
+        var light = new THREE.PointLight(0xffffff);
+        light.position.set(0, 250, 0);
+        scene.add(light);
+        // FLOOR
+        var floorMaterial = new THREE.MeshBasicMaterial({
+          color: 0x444444,
+          side: THREE.DoubleSide,
+        });
+        var floorGeometry = new THREE.PlaneGeometry(1000, 1000, 10, 10);
+        var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.position.y = -0.5;
+        floor.rotation.x = Math.PI / 2;
+        scene.add(floor);
+        // SKYBOX/FOG
+        var skyBoxGeometry = new THREE.CubeGeometry(10000, 10000, 10000);
+        var skyBoxMaterial = new THREE.MeshBasicMaterial({
+          color: 0x9999ff,
+          side: THREE.BackSide,
+        });
+        var skyBox = new THREE.Mesh(skyBoxGeometry, skyBoxMaterial);
+        scene.add(skyBox);
+
+        ////////////
+        // CUSTOM //
+        ////////////
+
+        var cubeGeometry = new THREE.CubeGeometry(50, 50, 50, 1, 1, 1);
+        var wireMaterial = new THREE.MeshBasicMaterial({
+          color: 0xff0000,
+          wireframe: true,
+        });
+        // MovingCube = new THREE.Mesh(cubeGeometry, wireMaterial);
+        // MovingCube.position.set(0, 25.1, 0);
+        // scene.add(MovingCube);
+
+        var wallGeometry = new THREE.CubeGeometry(100, 100, 20, 1, 1, 1);
+        var wallMaterial = new THREE.MeshBasicMaterial({ color: 0x8888ff });
+        var wireMaterial = new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          wireframe: true,
+        });
+
+        var wall = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall.position.set(100, 50, -100);
+        scene.add(wall);
+        collidableMeshList.push(wall);
+        var wall = new THREE.Mesh(wallGeometry, wireMaterial);
+        wall.position.set(100, 50, -100);
+        scene.add(wall);
+
+        var wall2 = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall2.position.set(-150, 50, 0);
+        wall2.rotation.y = 3.14159 / 2;
+        scene.add(wall2);
+        collidableMeshList.push(wall2);
+        var wall2 = new THREE.Mesh(wallGeometry, wireMaterial);
+        wall2.position.set(-150, 50, 0);
+        wall2.rotation.y = 3.14159 / 2;
+        scene.add(wall2);
+
+        // // Model
+        // var jsonLoader = new THREE.JSONLoader();
+        // jsonLoader.load("models/android.js", addModelToScene);
+
+        const { plane, updatePlane } = await Plane;
+        MovingCube = plane;
+        scene.add(MovingCube);
+
+        /* Graphulus-Function.js */
+        // "wireframe texture"
+        var wireTexture = new THREE.ImageUtils.loadTexture("images/square.png");
+        wireTexture.wrapS = wireTexture.wrapT = THREE.RepeatWrapping;
+        wireTexture.repeat.set(40, 40);
+        window.wireMaterial = new THREE.MeshBasicMaterial({
+          map: wireTexture,
+          vertexColors: THREE.VertexColors,
+          side: THREE.DoubleSide,
+          color: 0xffffff,
+        });
+
+        await createGraph();
+        /* /Graphulus-Function.js */
+      }
+
+      /* Graphulus-Function.js */
+      async function createGraph() {
+        meshFunction = function (x, y) {
+          return new THREE.Vector3(x, y, x + y);
+        };
+
+        // true => sensible image tile repeat...
+        graphGeometry = new THREE.ParametricGeometry(
+          meshFunction,
+          segments,
+          segments,
+          true
+        );
+        console.log(graphGeometry);
+
+        try {
+          let { width, height, points } = await loadImageData(
+            "./maps/map1.png"
+          );
+          // do something with the img element
+          segments = width;
+
+          const mapFirstDimensionSize = 40;
+          const maxHeightToWidthRatio = 1;
+
+          const maxY = mapFirstDimensionSize * maxHeightToWidthRatio;
+
+          const xScale = mapFirstDimensionSize / width;
+          const yScale = (height / width) * xScale;
+
+          const xOffset = -mapFirstDimensionSize / 2;
+          const yOffset = -((height / width) * mapFirstDimensionSize) / 2;
+
+          const vertices = [];
+          const faces = [];
+
+          for (let i = 0; i < width; i++) {
+            for (let j = 0; j < height; j++) {
+              vertices.push(
+                new THREE.Vector3(
+                  i * xScale + xOffset,
+                  j * yScale + yOffset,
+                  points[i * width + j] * (maxY / 255)
+                )
+              );
+            }
+          }
+
+          for (let i = 0; i < width - 1; i++) {
+            for (let j = 0; j < height - 1; j++) {
+              faces.push(
+                new THREE.Face3(
+                  j * width + i,
+                  j * width + i + 1,
+                  (j + 1) * width + i
+                )
+              );
+
+              faces.push(
+                new THREE.Face3(
+                  j * width + i + 1,
+                  (j + 1) * width + i,
+                  (j + 1) * width + i + 1
+                )
+              );
+            }
+          }
+
+          graphGeometry.vertices = vertices;
+          graphGeometry.faces = faces;
+        } catch (error) {
+          console.error(error);
+        }
+
+        ///////////////////////////////////////////////
+        // calculate vertex colors based on Z values //
+        ///////////////////////////////////////////////
+        graphGeometry.computeBoundingBox();
+        zMin = graphGeometry.boundingBox.min.z;
+        zMax = graphGeometry.boundingBox.max.z;
+        zRange = zMax - zMin;
+        var color, point, face, numberOfSides, vertexIndex;
+        // faces are indexed using characters
+        var faceIndices = ["a", "b", "c", "d"];
+        // first, assign colors to vertices as desired
+        for (var i = 0; i < graphGeometry.vertices.length; i++) {
+          point = graphGeometry.vertices[i];
+          color = new THREE.Color(0x0000ff);
+          color.setHSL((0.7 * (zMax - point.z)) / zRange, 1, 0.5);
+          graphGeometry.colors[i] = color; // use this array for convenience
+        }
+        // copy the colors as necessary to the face's vertexColors array.
+        for (var i = 0; i < graphGeometry.faces.length; i++) {
+          face = graphGeometry.faces[i];
+          numberOfSides = face instanceof THREE.Face3 ? 3 : 4;
+          for (var j = 0; j < numberOfSides; j++) {
+            vertexIndex = face[faceIndices[j]];
+            face.vertexColors[j] = graphGeometry.colors[vertexIndex];
+          }
+        }
+        ///////////////////////
+        // end vertex colors //
+        ///////////////////////
+
+        // material choices: vertexColorMaterial, wireMaterial , normMaterial , shadeMaterial
+
+        if (graphMesh) {
+          scene.remove(graphMesh);
+          // renderer.deallocateObject( graphMesh );
+        }
+
+        wireMaterial.map.repeat.set(segments, segments);
+
+        graphMesh = new THREE.Mesh(graphGeometry, wireMaterial);
+        graphMesh.doubleSided = true;
+        scene.add(graphMesh);
+        collidableMeshList.push(graphMesh);
+      }
+      /* /Graphulus-Function.js */
+
+      // // Model
+      // function addModelToScene(geometry, materials) {
+      //   var material = new THREE.MeshFaceMaterial(materials);
+      //   // android = new THREE.Mesh(geometry, material);
+      //   // android.scale.set(10, 10, 10);
+      //   // scene.add(android);
+      //   MovingCube = new THREE.Mesh(geometry, material);
+      //   MovingCube.scale.set(10, 10, 10);
+      //   // MovingCube.position.set(0, 25.1, 0);
+      //   MovingCube.position.set(0, -50, 0);
+      //   scene.add(MovingCube);
+      // }
+
+      function clearText() {
+        document.getElementById("message").innerHTML = "..........";
+      }
+
+      function appendText(txt) {
+        document.getElementById("message").innerHTML += txt;
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        render();
+        update();
+      }
+
+      function update() {
+        if (typeof MovingCube === "undefined") {
+          return;
+        }
+
+        var delta = clock.getDelta(); // seconds.
+        var moveDistance = 200 * delta; // 200 pixels per second
+        var rotateAngle = (Math.PI / 2) * delta; // pi/2 radians (90 degrees) per second
+
+        if (keyboard.pressed("A")) MovingCube.rotation.y += rotateAngle;
+        if (keyboard.pressed("D")) MovingCube.rotation.y -= rotateAngle;
+
+        if (keyboard.pressed("left")) MovingCube.position.x -= moveDistance;
+        if (keyboard.pressed("right")) MovingCube.position.x += moveDistance;
+        if (keyboard.pressed("up")) MovingCube.position.z -= moveDistance;
+        if (keyboard.pressed("down")) MovingCube.position.z += moveDistance;
+
+        // collision detection:
+        //   determines if any of the rays from the cube's origin to each vertex
+        //		intersects any face of a mesh in the array of target meshes
+        //   for increased collision accuracy, add more vertices to the cube;
+        //		for example, new THREE.CubeGeometry( 64, 64, 64, 8, 8, 8, wireMaterial )
+        //   HOWEVER: when the origin of the ray is within the target mesh, collisions do not occur
+        var originPoint = MovingCube.position.clone();
+
+        clearText();
+
+        for (
+          var vertexIndex = 0;
+          vertexIndex < MovingCube.geometry.vertices.length;
+          vertexIndex++
+        ) {
+          var localVertex = MovingCube.geometry.vertices[vertexIndex].clone();
+          var globalVertex = localVertex.applyMatrix4(MovingCube.matrix);
+          var directionVector = globalVertex.sub(MovingCube.position);
+
+          var ray = new THREE.Raycaster(
+            originPoint,
+            directionVector.clone().normalize()
+          );
+          var collisionResults = ray.intersectObjects(collidableMeshList);
+          if (
+            collisionResults.length > 0 &&
+            collisionResults[0].distance < directionVector.length()
+          )
+            console.count("hit");
+        }
+
+        /* Chase-Camera, connecting to Moving Cube */
+        var relativeCameraOffset = new THREE.Vector3(0, 15, 20);
+
+        var cameraOffset = relativeCameraOffset.applyMatrix4(
+          MovingCube.matrixWorld
+        );
+
+        camera.position.x = cameraOffset.x;
+        camera.position.y = cameraOffset.y;
+        camera.position.z = cameraOffset.z;
+        camera.lookAt(MovingCube.position);
+        /* /Chase-Camera, connecting to Moving Cube */
+
+        // controls.update();
+        stats.update();
+      }
+
+      function render() {
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>
